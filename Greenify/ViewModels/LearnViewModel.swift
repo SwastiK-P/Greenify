@@ -18,12 +18,20 @@ class LearnViewModel: ObservableObject {
     @Published var isLoading = false
     @Published var bookmarkedArticles: Set<UUID> = []
     
+    // Video properties
+    @Published var videos: [YouTubeVideo] = []
+    @Published var isLoadingVideos = false
+    @Published var videoError: String?
+    
     private var cancellables = Set<AnyCancellable>()
+    private let youtubeService: YouTubeService
     
     init() {
+        youtubeService = YouTubeService(apiKey: Config.youtubeAPIKey)
         loadArticles()
         setupBindings()
         loadBookmarks()
+        loadVideos()
     }
     
     private func loadArticles() {
@@ -139,5 +147,37 @@ class LearnViewModel: ObservableObject {
     
     func refreshArticles() {
         loadArticles()
+    }
+    
+    // MARK: - Video Methods
+    
+    func loadVideos() {
+        guard !Config.youtubeAPIKey.isEmpty && Config.youtubeAPIKey != "YOUR_YOUTUBE_API_KEY_HERE" else {
+            videoError = "YouTube API key not configured"
+            return
+        }
+        
+        isLoadingVideos = true
+        videoError = nil
+        
+        Task {
+            do {
+                // Request more results to account for Shorts being filtered out
+                let fetchedVideos = try await youtubeService.searchVideos(query: "sustainability", maxResults: 30)
+                await MainActor.run {
+                    self.videos = fetchedVideos
+                    self.isLoadingVideos = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.videoError = error.localizedDescription
+                    self.isLoadingVideos = false
+                }
+            }
+        }
+    }
+    
+    func refreshVideos() {
+        loadVideos()
     }
 }

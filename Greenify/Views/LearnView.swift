@@ -76,7 +76,7 @@ struct LearnView: View {
             }
             .navigationTitle("Learn")
             .navigationBarTitleDisplayMode(.large)
-            .searchable(text: $viewModel.searchText, prompt: "Search articles")
+            .searchable(text: $viewModel.searchText, prompt: selectedContentType == .articles ? "Search articles" : "Search videos")
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button(action: {
@@ -108,7 +108,11 @@ struct LearnView: View {
             }
             .refreshable {
                 HapticManager.shared.mediumImpact()
-                viewModel.refreshArticles()
+                if selectedContentType == .articles {
+                    viewModel.refreshArticles()
+                } else {
+                    viewModel.refreshVideos()
+                }
             }
         }
     }
@@ -261,13 +265,37 @@ struct LearnView: View {
     
     private var videosSection: some View {
         VStack(alignment: .leading, spacing: 20) {
-            EmptyStateView(
-                icon: "play.rectangle.fill",
-                title: "No Videos Yet",
-                subtitle: "Video content will be available soon.",
-                actionTitle: nil
-            )
-            .padding(.vertical, 40)
+            if viewModel.isLoadingVideos {
+                LoadingView(message: "Loading videos...")
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 40)
+            } else if let error = viewModel.videoError {
+                EmptyStateView(
+                    icon: "exclamationmark.triangle.fill",
+                    title: "Error Loading Videos",
+                    subtitle: error,
+                    actionTitle: "Retry"
+                ) {
+                    HapticManager.shared.mediumImpact()
+                    viewModel.refreshVideos()
+                }
+                .padding(.vertical, 40)
+            } else if viewModel.videos.isEmpty {
+                EmptyStateView(
+                    icon: "play.rectangle.fill",
+                    title: "No Videos Found",
+                    subtitle: "Try refreshing to load sustainability videos.",
+                    actionTitle: "Refresh"
+                ) {
+                    HapticManager.shared.mediumImpact()
+                    viewModel.refreshVideos()
+                }
+                .padding(.vertical, 40)
+            } else {
+                ForEach(viewModel.videos) { video in
+                    VideoCard(video: video)
+                }
+            }
         }
     }
 }

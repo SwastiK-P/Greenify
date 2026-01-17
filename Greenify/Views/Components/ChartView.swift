@@ -159,8 +159,116 @@ struct ProgressRingView: View {
     }
 }
 
+struct AnimatedPieChartView: View {
+    let data: [(String, Double, Color)]
+    let total: Double
+    let centerText: String
+    let centerSubtext: String
+    
+    @State private var animationProgress: Double = 0
+    
+    init(data: [(String, Double, Color)], centerText: String, centerSubtext: String) {
+        self.data = data
+        self.total = data.reduce(0) { $0 + $1.1 }
+        self.centerText = centerText
+        self.centerSubtext = centerSubtext
+    }
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            ZStack {
+                // Background circle
+                Circle()
+                    .stroke(Color.gray.opacity(0.2), lineWidth: 18)
+                    .frame(width: 180, height: 180)
+                
+                // Data arcs with animation
+                ForEach(Array(data.enumerated()), id: \.offset) { index, item in
+                    let startAngle = startAngle(for: index)
+                    let endAngle = endAngle(for: index)
+                    
+                    Circle()
+                        .trim(from: startAngle, to: startAngle + (endAngle - startAngle) * animationProgress)
+                        .stroke(
+                            item.2,
+                            style: StrokeStyle(
+                                lineWidth: 18,
+                                lineCap: .round
+                            )
+                        )
+                        .frame(width: 180, height: 180)
+                        .rotationEffect(.degrees(-90))
+                        .animation(.easeOut(duration: 1.0).delay(Double(index) * 0.1), value: animationProgress)
+                }
+                
+                // Center text
+                VStack(spacing: 3) {
+                    Text(centerText)
+                        .font(.title3)
+                        .fontWeight(.bold)
+                        .foregroundColor(.primary)
+                    
+                    Text(centerSubtext)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .onAppear {
+                withAnimation {
+                    animationProgress = 1.0
+                }
+            }
+            .padding(.bottom, 14) // Slight padding between chart and categories
+            
+            // Legend
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 2), spacing: 10) {
+                ForEach(Array(data.enumerated()), id: \.offset) { _, item in
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(item.2)
+                            .frame(width: 10, height: 10)
+                        
+                        Text(item.0)
+                            .font(.caption2)
+                            .foregroundColor(.primary)
+                        
+                        Spacer()
+                        
+                        Text(String(format: "%.1f%%", (item.1 / total) * 100))
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 5)
+                }
+            }
+        }
+    }
+    
+    private func startAngle(for index: Int) -> CGFloat {
+        let previousTotal = data.prefix(index).reduce(0) { $0 + $1.1 }
+        return CGFloat(previousTotal / total)
+    }
+    
+    private func endAngle(for index: Int) -> CGFloat {
+        let currentTotal = data.prefix(index + 1).reduce(0) { $0 + $1.1 }
+        return CGFloat(currentTotal / total)
+    }
+}
+
 #Preview {
     VStack(spacing: 32) {
+        AnimatedPieChartView(
+            data: [
+                ("Transport", 45, .blue),
+                ("Energy", 30, .orange),
+                ("Food", 20, .green),
+                ("Other", 5, .gray)
+            ],
+            centerText: "12.5 kg",
+            centerSubtext: "CO₂ daily"
+        )
+        
         DonutChartView(
             data: [
                 ("Transport", 45, .blue),

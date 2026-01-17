@@ -169,27 +169,18 @@ class AutomatedTrackingViewModel: ObservableObject {
             let totalDistance = activities.reduce(0) { $0 + $1.distance }
             
             if totalDistance > 0 {
-                // Find or create activity in calculator
+                // Always create a new activity entry (don't merge)
                 let activityName = mode.activityName
                 let emissionFactor = mode.emissionFactor
                 
-                if let existingActivity = calculator.activities.first(where: { $0.name == activityName && $0.type == .transport }) {
-                    // Update existing activity (add to current quantity)
-                    calculator.updateActivityQuantity(
-                        activityId: existingActivity.id,
-                        quantity: existingActivity.quantity + totalDistance
-                    )
-                } else {
-                    // Create new activity
-                    let newActivity = Activity(
-                        type: .transport,
-                        name: activityName,
-                        emissionFactor: emissionFactor,
-                        unit: "km",
-                        quantity: totalDistance
-                    )
-                    calculator.activities.append(newActivity)
-                }
+                let newActivity = Activity(
+                    type: .transport,
+                    name: activityName,
+                    emissionFactor: emissionFactor,
+                    unit: "km",
+                    quantity: totalDistance
+                )
+                calculator.activities.append(newActivity)
             }
         }
     }

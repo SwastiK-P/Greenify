@@ -7,6 +7,7 @@
 
 import Foundation
 import CoreLocation
+import UIKit
 
 // MARK: - Carbon Offset Event Model
 
@@ -24,10 +25,31 @@ struct CarbonOffsetEvent: Identifiable, Codable {
     let currentParticipants: Int
     let carbonOffsetPerParticipant: Double // kg CO2 offset
     let imageSystemName: String
+    let imageFileName: String? // Optional image file name for custom images
     let requirements: [String]
     let benefits: [String]
     let registrationDeadline: Date
     let isRegistrationOpen: Bool
+    
+    // Computed property to get UIImage if available
+    var image: UIImage? {
+        guard let fileName = imageFileName else { return nil }
+        
+        // First try to load from asset catalog
+        if let assetImage = UIImage(named: fileName) {
+            return assetImage
+        }
+        
+        // Fall back to file system (Documents directory)
+        guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        let fileURL = documentsDirectory.appendingPathComponent(fileName)
+        guard let imageData = try? Data(contentsOf: fileURL) else {
+            return nil
+        }
+        return UIImage(data: imageData)
+    }
     
     var isFull: Bool {
         currentParticipants >= maxParticipants
@@ -130,7 +152,7 @@ extension CarbonOffsetEvent {
     static let mockEvents: [CarbonOffsetEvent] = [
         CarbonOffsetEvent(
             id: UUID(),
-            title: "Community Tree Plantation Drive",
+            title: "Tree Plantation Drive",
             description: "Join us for a day of planting trees in the local park. Help us reach our goal of planting 500 trees to offset carbon emissions and create a greener environment for future generations.",
             category: .treePlantation,
             date: Calendar.current.date(byAdding: .day, value: 7, to: Date()) ?? Date(),
@@ -147,6 +169,7 @@ extension CarbonOffsetEvent {
             currentParticipants: 67,
             carbonOffsetPerParticipant: 2.5, // kg CO2 per tree planted
             imageSystemName: "tree.fill",
+            imageFileName: "TreePlantationImg",
             requirements: [
                 "Comfortable clothing and closed-toe shoes",
                 "Water bottle",
@@ -183,6 +206,7 @@ extension CarbonOffsetEvent {
             currentParticipants: 89,
             carbonOffsetPerParticipant: 1.2,
             imageSystemName: "water.waves",
+            imageFileName: nil,
             requirements: [
                 "Gloves (will be provided)",
                 "Comfortable beach attire",
@@ -219,6 +243,7 @@ extension CarbonOffsetEvent {
             currentParticipants: 32,
             carbonOffsetPerParticipant: 0.8,
             imageSystemName: "leaf.fill",
+            imageFileName: nil,
             requirements: [
                 "No prior experience needed",
                 "Wear clothes you don't mind getting dirty",
@@ -254,6 +279,7 @@ extension CarbonOffsetEvent {
             currentParticipants: 18,
             carbonOffsetPerParticipant: 5.0,
             imageSystemName: "sun.max.fill",
+            imageFileName: nil,
             requirements: [
                 "Basic understanding of electricity (helpful but not required)",
                 "Safety equipment will be provided",
@@ -289,6 +315,7 @@ extension CarbonOffsetEvent {
             currentParticipants: 25,
             carbonOffsetPerParticipant: 1.5,
             imageSystemName: "trash.slash.fill",
+            imageFileName: "ZeroWasteImg",
             requirements: [
                 "Bring your own notebook",
                 "Optional: Bring examples of items you want to reduce"
@@ -323,6 +350,7 @@ extension CarbonOffsetEvent {
             currentParticipants: 156,
             carbonOffsetPerParticipant: 0.5,
             imageSystemName: "book.fill",
+            imageFileName: nil,
             requirements: [
                 "No requirements - all welcome",
                 "Bring questions and curiosity"

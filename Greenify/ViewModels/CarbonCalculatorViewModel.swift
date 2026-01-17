@@ -170,6 +170,12 @@ class CarbonCalculatorViewModel: ObservableObject {
             }
             
             self.carbonFootprint = CarbonFootprint(dailyEmissions: totalDailyEmissions)
+            
+            // Save today's emissions to storage
+            Task { @MainActor in
+                DailyEmissionsStorage.shared.saveTodaysEmissions(totalDailyEmissions)
+            }
+            
             self.isCalculating = false
         }
     }
@@ -380,7 +386,7 @@ class CarbonCalculatorViewModel: ObservableObject {
             waypoints: extractWaypoints(from: route.name)
         )
         
-        // Log the activity with route
+        // Log the activity with route (always create new entry, don't merge)
         let newActivity = Activity(
             type: .transport,
             name: vehicleType,
@@ -390,12 +396,7 @@ class CarbonCalculatorViewModel: ObservableObject {
             route: routeInfo
         )
         
-        // Check if activity already exists
-        if let existingIndex = activities.firstIndex(where: { $0.name == vehicleType && $0.route?.from == routeDetection.from && $0.route?.to == routeDetection.to }) {
-            activities[existingIndex].quantity += route.distance
-        } else {
-            activities.append(newActivity)
-        }
+        activities.append(newActivity)
         
         // Add confirmation message
         let emissions = route.distance * activity.emissionFactor
@@ -415,6 +416,27 @@ class CarbonCalculatorViewModel: ObservableObject {
                 timestamp: updatedMessage.timestamp,
                 hasRouteSelection: false
             )
+        }
+        
+        // Store routes for tip generation before clearing
+        let availableRoutes = routeService.routes
+        
+        // Generate and show personalized tip after a short delay
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 second delay
+            
+            // Always generate and show a tip
+            let tip = TipGenerator.generateTip(
+                for: newActivity,
+                selectedRoute: route,
+                allRoutes: availableRoutes
+            )
+            let tipMessage = ChatMessage(
+                content: "\(tip.title)\n\n\(tip.message)",
+                isUser: false,
+                isTip: true // Mark as tip for distinct styling
+            )
+            messages.append(tipMessage)
         }
         
         // Clear route detection only after successful logging
@@ -675,22 +697,16 @@ class CarbonCalculatorViewModel: ObservableObject {
     }
     
     private func logActivity(from extracted: ExtractedActivity) async {
-        // Check if this activity already exists
-        if let existingIndex = activities.firstIndex(where: { $0.name == extracted.name && $0.type == extracted.activityType }) {
-            // Update existing activity
-            activities[existingIndex].quantity += extracted.quantity
-        } else {
-            // Create new activity
-            let newActivity = Activity(
-                id: UUID(),
-                type: extracted.activityType,
-                name: extracted.name,
-                emissionFactor: extracted.emissionFactor,
-                unit: extracted.unit,
-                quantity: extracted.quantity
-            )
-            activities.append(newActivity)
-        }
+        // Always create a new activity entry (don't merge duplicates)
+        let newActivity = Activity(
+            id: UUID(),
+            type: extracted.activityType,
+            name: extracted.name,
+            emissionFactor: extracted.emissionFactor,
+            unit: extracted.unit,
+            quantity: extracted.quantity
+        )
+        activities.append(newActivity)
         
         // Add confirmation message
         let emissions = extracted.quantity * extracted.emissionFactor
@@ -699,6 +715,25 @@ class CarbonCalculatorViewModel: ObservableObject {
             isUser: false
         )
         messages.append(confirmationMessage)
+        
+        // Generate and show personalized tip after a short delay
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 second delay
+            
+            // Always generate and show a tip
+            let tip = TipGenerator.generateTip(for: newActivity)
+            let tipMessage = ChatMessage(
+                content: "\(tip.title)\n\n\(tip.message)",
+                isUser: false,
+                isTip: true // Mark as tip for distinct styling
+            )
+            messages.append(tipMessage)
+        }
+    }
+    
+    func deleteActivity(activityId: UUID) {
+        activities.removeAll { $0.id == activityId }
+        HapticManager.shared.mediumImpact()
     }
     
     func clearChat() {

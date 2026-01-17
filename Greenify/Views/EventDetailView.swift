@@ -66,18 +66,28 @@ struct EventDetailView: View {
                     )
                     .frame(height: 200)
                 
-                VStack(spacing: 12) {
-                    Image(systemName: event.imageSystemName)
-                        .font(.system(size: 60, weight: .semibold))
-                        .foregroundColor(Color(event.category.color))
-                    
-                    Text(event.category.rawValue)
-                        .font(.headline)
-                        .foregroundColor(Color(event.category.color))
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 6)
-                        .background(Color.white.opacity(0.8))
+                // Show custom image if available, otherwise show system icon
+                if let customImage = event.image {
+                    Image(uiImage: customImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(height: 200)
+                        .clipped()
                         .cornerRadius(20)
+                } else {
+                    VStack(spacing: 12) {
+                        Image(systemName: event.imageSystemName)
+                            .font(.system(size: 60, weight: .semibold))
+                            .foregroundColor(Color(event.category.color))
+                        
+                        Text(event.category.rawValue)
+                            .font(.headline)
+                            .foregroundColor(Color(event.category.color))
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 6)
+                            .background(Color.white.opacity(0.8))
+                            .cornerRadius(20)
+                    }
                 }
             }
             

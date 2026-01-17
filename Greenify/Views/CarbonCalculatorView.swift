@@ -7,6 +7,20 @@
 
 import SwiftUI
 
+// MARK: - ActivityType Color Extension
+extension ActivityType {
+    var colorValue: Color {
+        switch self.color {
+        case "blue": return .blue
+        case "yellow": return .yellow
+        case "green": return .green
+        case "red": return .red
+        case "cyan": return .cyan
+        default: return .gray
+        }
+    }
+}
+
 struct CarbonCalculatorView: View {
     @ObservedObject var viewModel: CarbonCalculatorViewModel
     @State private var messageText = ""
@@ -330,13 +344,32 @@ struct MessageBubble: View {
                 } else {
                     // AI message with native glass effect
                     VStack(alignment: .leading, spacing: 12) {
-                        // Text content with glass effect
-                        Text(message.content)
-                            .font(.body)
-                            .foregroundColor(.primary)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .glassEffect(in: RoundedRectangle(cornerRadius: 18))
+                        // Check if this is a tip message
+                        let isTip = message.content.contains("💡")
+                        
+                        if isTip {
+                            // Tip message with special styling
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(message.content)
+                                    .font(.body)
+                                    .foregroundColor(.primary)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 12)
+                                    .background {
+                                        RoundedRectangle(cornerRadius: 18)
+                                            .fill(Color.green.opacity(0.1))
+                                    }
+                                    .glassEffect(in: RoundedRectangle(cornerRadius: 18))
+                            }
+                        } else {
+                            // Regular text content with glass effect
+                            Text(message.content)
+                                .font(.body)
+                                .foregroundColor(.primary)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 10)
+                                .glassEffect(in: RoundedRectangle(cornerRadius: 18))
+                        }
                         
                         // Suggested actions - rendered outside glass effect for full visibility
                         if let viewModel = viewModel, !message.suggestedActions.isEmpty {
@@ -478,7 +511,7 @@ struct CarbonFootprintResultsView: View {
                 if !emissionsByCategory.isEmpty {
                     DonutChartView(
                         data: emissionsByCategory.map { (type, emissions) in
-                            (type.rawValue, emissions, Color(type.color))
+                            (type.rawValue, emissions, type.colorValue)
                         },
                         centerText: String(format: "%.1f kg", viewModel.carbonFootprint.dailyEmissions),
                         centerSubtext: "CO₂ daily"
@@ -620,6 +653,38 @@ struct EmissionBreakdownView: View {
     var body: some View {
         NavigationView {
             List {
+                // Pie Chart Section
+                Section {
+                    let emissionsByCategory = viewModel.getEmissionsByCategory()
+                    
+                    if !emissionsByCategory.isEmpty {
+                        VStack(spacing: 0) {
+                            AnimatedPieChartView(
+                                data: emissionsByCategory.map { (type, emissions) in
+                                    (type.rawValue, emissions, type.colorValue)
+                                },
+                                centerText: String(format: "%.1f kg", viewModel.carbonFootprint.dailyEmissions),
+                                centerSubtext: "CO₂ daily"
+                            )
+                            .padding(.top, 8)
+                            .padding(.bottom, 4)
+                            .padding(.horizontal, 8)
+                        }
+                        .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
+                        .listRowBackground(Color.clear)
+                    } else {
+                        EmptyStateView(
+                            icon: "chart.pie.fill",
+                            title: "No Data",
+                            subtitle: "Add some activities to see the breakdown"
+                        )
+                        .padding(.vertical, 20)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                    }
+                }
+                
+                // Activities List
                 ForEach(ActivityType.allCases, id: \.self) { type in
                     let activities = viewModel.activitiesForType(type).filter { $0.totalEmissions > 0 }
                     
@@ -669,12 +734,18 @@ struct EmissionBreakdownView: View {
                                 }
                                 .padding(.vertical, 4)
                             }
+                            .onDelete { indexSet in
+                                for index in indexSet {
+                                    let activity = activities[index]
+                                    viewModel.deleteActivity(activityId: activity.id)
+                                }
+                            }
                         }
                     }
                 }
             }
             .navigationTitle("Emission Breakdown")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
