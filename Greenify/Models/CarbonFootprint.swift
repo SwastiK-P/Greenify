@@ -62,6 +62,15 @@ struct Activity: Identifiable {
     var totalEmissions: Double {
         return quantity * emissionFactor
     }
+    
+    init(id: UUID = UUID(), type: ActivityType, name: String, emissionFactor: Double, unit: String, quantity: Double = 0) {
+        self.id = id
+        self.type = type
+        self.name = name
+        self.emissionFactor = emissionFactor
+        self.unit = unit
+        self.quantity = quantity
+    }
 }
 
 // MARK: - Predefined Activities
@@ -70,6 +79,7 @@ extension Activity {
     static let transportActivities = [
         Activity(id: UUID(), type: .transport, name: "Car (Petrol)", emissionFactor: 0.21, unit: "km"),
         Activity(id: UUID(), type: .transport, name: "Car (Diesel)", emissionFactor: 0.17, unit: "km"),
+        Activity(id: UUID(), type: .transport, name: "Car (Electric)", emissionFactor: 0.05, unit: "km"),
         Activity(id: UUID(), type: .transport, name: "Bus", emissionFactor: 0.08, unit: "km"),
         Activity(id: UUID(), type: .transport, name: "Train", emissionFactor: 0.04, unit: "km"),
         Activity(id: UUID(), type: .transport, name: "Flight (Domestic)", emissionFactor: 0.25, unit: "km"),

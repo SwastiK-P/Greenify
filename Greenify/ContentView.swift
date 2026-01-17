@@ -22,7 +22,7 @@ struct ContentView: View {
             
             CarbonCalculatorView(viewModel: carbonCalculatorViewModel)
                 .tabItem {
-                    Image(systemName: "calculator.fill")
+                    Image(systemName: "chart.bar.fill")
                     Text("Calculator")
                 }
             

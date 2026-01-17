@@ -9,46 +9,117 @@ import SwiftUI
 
 struct CarbonCalculatorView: View {
     @ObservedObject var viewModel: CarbonCalculatorViewModel
+    @State private var messageText = ""
     @State private var showingResults = false
     @State private var showingBreakdown = false
+    @FocusState private var isTextFieldFocused: Bool
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 0) {
-                // Activity Type Picker
-                activityTypePicker
+            ZStack {
+                // Subtle green background gradient (same as articles)
+                LinearGradient(
+                    colors: [
+                        Color(.systemBackground),
+                        Color.green.opacity(0.10),
+                        Color(.systemBackground).opacity(0.98)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
                 
-                // Activities List
+                VStack(spacing: 0) {
+                    // Chat Messages
+                    ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(spacing: 16) {
-                        ForEach(viewModel.activitiesForType(viewModel.selectedActivityType)) { activity in
-                            ActivityInputCard(
-                                activity: activity,
-                                onQuantityChange: { quantity in
-                                    viewModel.updateActivityQuantity(activityId: activity.id, quantity: quantity)
+                            LazyVStack(spacing: 12) {
+                                ForEach(viewModel.messages) { message in
+                                    MessageBubble(message: message)
+                                        .id(message.id)
                                 }
-                            )
+                                
+                                if viewModel.isLoadingResponse {
+                                    TypingIndicator()
+                                        .id("typing-indicator")
+                                }
+                            }
+                            .padding(.horizontal)
+                            .padding(.vertical, 16)
+                        }
+                    .onChange(of: viewModel.messages.count) { _, _ in
+                        if let lastMessage = viewModel.messages.last {
+                            withAnimation {
+                                proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                            }
                         }
                     }
-                    .padding(.horizontal)
-                    .padding(.bottom, 100) // Space for floating button
+                    .onChange(of: viewModel.isLoadingResponse) { _, isLoading in
+                        if isLoading {
+                            withAnimation {
+                                proxy.scrollTo("typing-indicator", anchor: .bottom)
+                            }
+                        } else if let lastMessage = viewModel.messages.last {
+                            withAnimation {
+                                proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                            }
+                        }
+                    }
+                    .onChange(of: isTextFieldFocused) { _, isFocused in
+                        if isFocused {
+                            // Scroll to bottom when input is focused
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                if let lastMessage = viewModel.messages.last {
+                                    withAnimation {
+                                        proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                                    }
+                                } else if viewModel.isLoadingResponse {
+                                    withAnimation {
+                                        proxy.scrollTo("typing-indicator", anchor: .bottom)
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 
-                Spacer()
+                // Results Summary Bar (if there are emissions)
+                if viewModel.carbonFootprint.dailyEmissions > 0 {
+                    resultsSummaryBar
+                }
+                
+                // Message Input
+                messageInputBar
+                }
             }
             .navigationTitle("Carbon Calculator")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Reset") {
+                    Menu {
+                        Button("View Results") {
+                            showingResults = true
+                        }
+                        .disabled(viewModel.carbonFootprint.dailyEmissions == 0)
+                        
+                        Button("View Breakdown") {
+                            showingBreakdown = true
+                        }
+                        .disabled(viewModel.carbonFootprint.dailyEmissions == 0)
+                        
+                        Divider()
+                        
+                        Button("Clear Chat", role: .destructive) {
+                            viewModel.clearChat()
+                        }
+                        
+                        Button("Reset Calculator", role: .destructive) {
                         viewModel.resetCalculator()
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
                     }
-                    .foregroundColor(.red)
                 }
-            }
-            .overlay(alignment: .bottom) {
-                // Floating Results Button
-                floatingResultsButton
             }
             .sheet(isPresented: $showingResults) {
                 CarbonFootprintResultsView(viewModel: viewModel)
@@ -56,36 +127,22 @@ struct CarbonCalculatorView: View {
             .sheet(isPresented: $showingBreakdown) {
                 EmissionBreakdownView(viewModel: viewModel)
             }
-        }
-    }
-    
-    private var activityTypePicker: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
-                ForEach(ActivityType.allCases, id: \.self) { type in
-                    ActivityTypeButton(
-                        type: type,
-                        isSelected: viewModel.selectedActivityType == type
-                    ) {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            viewModel.selectedActivityType = type
-                        }
-                    }
+            .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
+                Button("OK") {
+                    viewModel.errorMessage = nil
+                }
+            } message: {
+                if let error = viewModel.errorMessage {
+                    Text(error)
                 }
             }
-            .padding(.horizontal)
         }
-        .padding(.vertical, 16)
-        .background(Color(.systemBackground))
     }
     
-    private var floatingResultsButton: some View {
-        VStack(spacing: 12) {
-            // Quick results preview
-            if viewModel.carbonFootprint.dailyEmissions > 0 {
+    private var resultsSummaryBar: some View {
                 HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Daily Emissions")
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Today's Emissions")
                             .font(.caption)
                             .foregroundColor(.secondary)
                         
@@ -96,148 +153,184 @@ struct CarbonCalculatorView: View {
                     
                     Spacer()
                     
-                    Button("Breakdown") {
-                        showingBreakdown = true
-                    }
-                    .font(.caption)
-                    .foregroundColor(.blue)
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 12)
-                .background(Color(.systemBackground))
-                .cornerRadius(12)
-                .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
-            }
-            
-            // Main results button
             Button(action: {
-                showingResults = true
+                showingBreakdown = true
             }) {
-                HStack {
-                    Image(systemName: "chart.bar.fill")
-                        .font(.headline)
-                    
-                    Text("View Full Results")
-                        .font(.headline)
-                        .fontWeight(.semibold)
+                HStack(spacing: 4) {
+                    Image(systemName: "chart.pie.fill")
+                    Text("Breakdown")
                 }
-                .foregroundColor(.white)
-                .padding(.horizontal, 24)
-                .padding(.vertical, 16)
-                .background(Color.green.gradient)
-                .cornerRadius(16)
-                .shadow(color: Color.green.opacity(0.3), radius: 8, x: 0, y: 4)
+                .font(.subheadline)
+                .foregroundColor(.blue)
             }
-            .disabled(viewModel.carbonFootprint.dailyEmissions == 0)
-            .opacity(viewModel.carbonFootprint.dailyEmissions == 0 ? 0.6 : 1.0)
         }
-        .padding(.horizontal, 20)
-        .padding(.bottom, 32)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(Color(.systemGray6))
+        .overlay(
+            Rectangle()
+                .frame(height: 1)
+                .foregroundColor(Color(.separator)),
+            alignment: .top
+        )
     }
-}
-
-struct ActivityTypeButton: View {
-    let type: ActivityType
-    let isSelected: Bool
-    let action: () -> Void
     
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 8) {
-                Image(systemName: type.icon)
-                    .font(.title2)
-                    .foregroundColor(isSelected ? .white : Color(type.color))
+    private var messageInputBar: some View {
+        HStack(spacing: 12) {
+            // Text input field
+            HStack(spacing: 8) {
+                TextField("Type a message...", text: $messageText, axis: .vertical)
+                    .font(.body)
+                    .foregroundColor(.primary)
+                    .lineLimit(1...5)
+                    .focused($isTextFieldFocused)
+                    .onTapGesture {
+                        // Focus the text field and trigger scroll
+                        isTextFieldFocused = true
+                    }
+                    .onSubmit {
+                        sendMessage()
+                    }
                 
-                Text(type.rawValue)
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundColor(isSelected ? .white : .primary)
+                // Microphone icon (right side of text field)
+                if messageText.isEmpty {
+                    Button(action: {
+                        // Future: Add voice input functionality
+                    }) {
+                        Image(systemName: "mic.fill")
+                            .font(.system(size: 16))
+                            .foregroundColor(.secondary)
+                    }
+                }
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(isSelected ? Color(type.color) : Color(.systemGray6))
-            )
+            .padding(.vertical, 10)
+            .glassEffect(in: RoundedRectangle(cornerRadius: 20))
+            
+            // Send button (only show when text is entered)
+            if !messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Button(action: sendMessage) {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.system(size: 32, weight: .medium))
+                        .foregroundColor(.green)
+                }
+                .disabled(viewModel.isLoadingResponse)
+            }
         }
-        .buttonStyle(PlainButtonStyle())
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+    
+    private func sendMessage() {
+        let text = messageText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        
+        viewModel.sendMessage(text)
+        messageText = ""
+        isTextFieldFocused = false
     }
 }
 
-struct ActivityInputCard: View {
-    let activity: Activity
-    let onQuantityChange: (Double) -> Void
-    
-    @State private var quantityText = ""
-    @FocusState private var isTextFieldFocused: Bool
+// MARK: - Message Bubble
+struct MessageBubble: View {
+    let message: ChatMessage
     
     var body: some View {
-        CardView {
-            VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(activity.name)
-                            .font(.headline)
-                            .foregroundColor(.primary)
-                        
-                        Text("Emission factor: \(String(format: "%.2f", activity.emissionFactor)) kg CO₂/\(activity.unit)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    Spacer()
-                    
-                    Image(systemName: activity.type.icon)
-                        .font(.title2)
-                        .foregroundColor(Color(activity.type.color))
+            if message.isUser {
+                Spacer(minLength: 50)
+            }
+            
+            VStack(alignment: message.isUser ? .trailing : .leading, spacing: 4) {
+                if message.isUser {
+                    // Blue bubble for user
+                    Text(message.content)
+                        .font(.body)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 18)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            Color.blue.opacity(0.9),
+                                            Color.blue.opacity(0.85)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 18)
+                                        .stroke(
+                                            LinearGradient(
+                                                colors: [
+                                                    Color.white.opacity(0.3),
+                                                    Color.white.opacity(0.1),
+                                                    Color.clear
+                                                ],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            ),
+                                            lineWidth: 1
+                                        )
+                                )
+                        )
+                        .shadow(color: Color.blue.opacity(0.3), radius: 8, x: 0, y: 4)
+                } else {
+                    // AI message with native glass effect
+                    Text(message.content)
+                        .font(.body)
+                        .foregroundColor(.primary)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                        .glassEffect(in: RoundedRectangle(cornerRadius: 18))
                 }
                 
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Quantity (\(activity.unit))")
-                            .font(.subheadline)
+                Text(message.timestamp, style: .time)
+                    .font(.caption2)
                             .foregroundColor(.secondary)
-                        
-                        TextField("0", text: $quantityText)
-                            .keyboardType(.decimalPad)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-                            .focused($isTextFieldFocused)
-                            .onChange(of: quantityText) { _, newValue in
-                                if let quantity = Double(newValue) {
-                                    onQuantityChange(quantity)
-                                } else if newValue.isEmpty {
-                                    onQuantityChange(0)
-                                }
-                            }
-                    }
-                    
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text("Emissions")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                        
-                        Text("\(String(format: "%.2f", activity.totalEmissions)) kg CO₂")
-                            .font(.headline)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.primary)
-                    }
-                }
+                    .padding(.horizontal, 4)
             }
-        }
-        .onAppear {
-            quantityText = activity.quantity > 0 ? String(format: "%.1f", activity.quantity) : ""
-        }
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Done") {
-                    isTextFieldFocused = false
-                }
+            
+            if !message.isUser {
+                Spacer(minLength: 50)
             }
         }
     }
 }
 
+// MARK: - Typing Indicator
+struct TypingIndicator: View {
+    @State private var animationPhase = 0
+    
+    var body: some View {
+        HStack {
+            HStack(spacing: 4) {
+                ForEach(0..<3) { index in
+                    Circle()
+                        .fill(Color.secondary)
+                        .frame(width: 8, height: 8)
+                        .scaleEffect(animationPhase == index ? 1.2 : 0.8)
+                        .opacity(animationPhase == index ? 1.0 : 0.5)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .glassEffect(in: RoundedRectangle(cornerRadius: 18))
+            
+            Spacer(minLength: 50)
+        }
+        .onAppear {
+            withAnimation(.easeInOut(duration: 0.6).repeatForever()) {
+                animationPhase = (animationPhase + 1) % 3
+            }
+        }
+    }
+}
+
+// MARK: - Results View (keeping existing implementation)
 struct CarbonFootprintResultsView: View {
     @ObservedObject var viewModel: CarbonCalculatorViewModel
     @Environment(\.dismiss) private var dismiss
