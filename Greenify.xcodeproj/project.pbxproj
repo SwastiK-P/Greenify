@@ -256,6 +256,9 @@
 				DEVELOPMENT_TEAM = D6743AUZU3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "We need Camera permission to scan the items";
+				INFOPLIST_KEY_NSLocationUsageDescription = "We need location access to show the nearby Recycling Centers";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "We need location access to show the nearby Recycling Centers";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -288,6 +291,9 @@
 				DEVELOPMENT_TEAM = D6743AUZU3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "We need Camera permission to scan the items";
+				INFOPLIST_KEY_NSLocationUsageDescription = "We need location access to show the nearby Recycling Centers";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "We need location access to show the nearby Recycling Centers";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
