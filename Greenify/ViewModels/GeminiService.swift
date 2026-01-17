@@ -289,6 +289,11 @@ class GeminiService {
         }
         
         prompt += "\n\nUser: \(userMessage)"
+        prompt += "\n\nIMPORTANT RULES FOR EXTRACTION:"
+        prompt += "\n- DO NOT assume or guess quantities. Only extract if explicitly mentioned."
+        prompt += "\n- For food items, if quantity is not mentioned, return {\"complete\": false}"
+        prompt += "\n- DO NOT use default values like 1.0 kg unless the user explicitly said '1 kg' or similar."
+        prompt += "\n- If any required field is missing or unclear, return {\"complete\": false}"
         prompt += "\n\nExtract the activity data as JSON:"
         
         return prompt

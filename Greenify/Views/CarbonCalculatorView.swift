@@ -36,7 +36,10 @@ struct CarbonCalculatorView: View {
                 ScrollView {
                             LazyVStack(spacing: 12) {
                                 ForEach(viewModel.messages) { message in
-                                    MessageBubble(message: message)
+                                    MessageBubble(
+                                        message: message,
+                                        viewModel: viewModel
+                                    )
                                         .id(message.id)
                                 }
                                 
@@ -48,6 +51,7 @@ struct CarbonCalculatorView: View {
                             .padding(.horizontal)
                             .padding(.vertical, 16)
                         }
+                        .scrollDismissesKeyboard(.interactively)
                     .onChange(of: viewModel.messages.count) { _, _ in
                         if let lastMessage = viewModel.messages.last {
                             withAnimation {
@@ -84,11 +88,6 @@ struct CarbonCalculatorView: View {
                     }
                 }
                 
-                // Results Summary Bar (if there are emissions)
-                if viewModel.carbonFootprint.dailyEmissions > 0 {
-                    resultsSummaryBar
-                }
-                
                 // Message Input
                 messageInputBar
                 }
@@ -105,28 +104,40 @@ struct CarbonCalculatorView: View {
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Menu {
-                        Button("View Results") {
-                            showingResults = true
-                        }
-                        .disabled(viewModel.carbonFootprint.dailyEmissions == 0)
-                        
-                        Button("View Breakdown") {
+                    HStack(spacing: 16) {
+                        // Breakdown button
+                        Button(action: {
                             showingBreakdown = true
+                        }) {
+                            Image(systemName: "chart.pie.fill")
                         }
                         .disabled(viewModel.carbonFootprint.dailyEmissions == 0)
+                        .foregroundColor(viewModel.carbonFootprint.dailyEmissions == 0 ? .gray : .primary)
                         
-                        Divider()
-                        
-                        Button("Clear Chat", role: .destructive) {
-                            viewModel.clearChat()
+                        // Menu button
+                        Menu {
+                            Button("View Results") {
+                                showingResults = true
+                            }
+                            .disabled(viewModel.carbonFootprint.dailyEmissions == 0)
+                            
+                            Button("View Breakdown") {
+                                showingBreakdown = true
+                            }
+                            .disabled(viewModel.carbonFootprint.dailyEmissions == 0)
+                            
+                            Divider()
+                            
+                            Button("Clear Chat", role: .destructive) {
+                                viewModel.clearChat()
+                            }
+                            
+                            Button("Reset Calculator", role: .destructive) {
+                            viewModel.resetCalculator()
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
                         }
-                        
-                        Button("Reset Calculator", role: .destructive) {
-                        viewModel.resetCalculator()
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
                     }
                 }
             }
@@ -138,6 +149,34 @@ struct CarbonCalculatorView: View {
             }
             .sheet(isPresented: $showingAutomatedTracking) {
                 AutomatedTrackingView(viewModel: AutomatedTrackingViewModel(carbonCalculatorViewModel: viewModel))
+            }
+            .sheet(isPresented: $viewModel.showingRouteSelection) {
+                if let routeDetection = viewModel.detectedRoute {
+                    RouteSelectionView(
+                        routeService: viewModel.routeService,
+                        viewModel: viewModel,
+                        routeDetection: routeDetection
+                    )
+                }
+            }
+            .sheet(isPresented: $viewModel.showingVehicleSelection) {
+                VehicleSelectionView(viewModel: viewModel) { vehicleName in
+                    viewModel.selectVehicle(vehicleName)
+                }
+            }
+            .sheet(isPresented: $viewModel.showingApplianceSelection) {
+                ApplianceSelectionView(viewModel: viewModel) { applianceName, duration, unit in
+                    viewModel.selectAppliance(applianceName, duration: duration, unit: unit)
+                }
+            }
+            .sheet(isPresented: $viewModel.showingMealSelection) {
+                MealSelectionView(
+                    viewModel: viewModel,
+                    preselectedMeal: viewModel.preselectedMeal
+                ) { mealName, portion, unit in
+                    viewModel.selectMeal(mealName, portion: portion, unit: unit)
+                    viewModel.preselectedMeal = nil // Clear after selection
+                }
             }
             .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
                 Button("OK") {
@@ -152,32 +191,24 @@ struct CarbonCalculatorView: View {
     }
     
     private var resultsSummaryBar: some View {
-                HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Today's Emissions")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        
-                        Text("\(String(format: "%.1f", viewModel.carbonFootprint.dailyEmissions)) kg CO₂")
-                            .font(.headline)
-                            .fontWeight(.semibold)
-                    }
-                    
-                    Spacer()
-                    
+        HStack(spacing: 12) {
+            Text("\(String(format: "%.1f", viewModel.carbonFootprint.dailyEmissions)) kg CO₂")
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(.primary)
+            
+            Spacer()
+            
             Button(action: {
                 showingBreakdown = true
             }) {
-                HStack(spacing: 4) {
-                    Image(systemName: "chart.pie.fill")
-                    Text("Breakdown")
-                }
-                .font(.subheadline)
-                .foregroundColor(.blue)
+                Image(systemName: "chart.pie.fill")
+                    .font(.system(size: 14))
+                    .foregroundColor(.green)
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.vertical, 8)
         .background(Color(.systemGray6))
         .overlay(
             Rectangle()
@@ -229,7 +260,7 @@ struct CarbonCalculatorView: View {
                 .disabled(viewModel.isLoadingResponse)
             }
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 14)
         .padding(.vertical, 12)
     }
     
@@ -246,6 +277,12 @@ struct CarbonCalculatorView: View {
 // MARK: - Message Bubble
 struct MessageBubble: View {
     let message: ChatMessage
+    let viewModel: CarbonCalculatorViewModel?
+    
+    init(message: ChatMessage, viewModel: CarbonCalculatorViewModel? = nil) {
+        self.message = message
+        self.viewModel = viewModel
+    }
     
     var body: some View {
                 HStack {
@@ -292,12 +329,25 @@ struct MessageBubble: View {
                         .shadow(color: Color.blue.opacity(0.3), radius: 8, x: 0, y: 4)
                 } else {
                     // AI message with native glass effect
-                    Text(message.content)
-                        .font(.body)
-                        .foregroundColor(.primary)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .glassEffect(in: RoundedRectangle(cornerRadius: 18))
+                    VStack(alignment: .leading, spacing: 12) {
+                        // Text content with glass effect
+                        Text(message.content)
+                            .font(.body)
+                            .foregroundColor(.primary)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .glassEffect(in: RoundedRectangle(cornerRadius: 18))
+                        
+                        // Suggested actions - rendered outside glass effect for full visibility
+                        if let viewModel = viewModel, !message.suggestedActions.isEmpty {
+                            SuggestedActionsView(
+                                actions: message.suggestedActions,
+                                usedActionIds: viewModel.usedActionIds
+                            ) { action in
+                                viewModel.handleSuggestedAction(action)
+                            }
+                        }
+                    }
                 }
                 
                 Text(message.timestamp, style: .time)
@@ -576,24 +626,48 @@ struct EmissionBreakdownView: View {
                     if !activities.isEmpty {
                         Section(header: Text(type.rawValue)) {
                             ForEach(activities) { activity in
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(activity.name)
-                                            .font(.subheadline)
-                                            .foregroundColor(.primary)
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(activity.displayName)
+                                                .font(.subheadline)
+                                                .foregroundColor(.primary)
+                                            
+                                            Text("\(String(format: "%.1f", activity.quantity)) \(activity.unit)")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                            
+                                            if let route = activity.route {
+                                                Text("\(route.from) → \(route.to)")
+                                                    .font(.caption2)
+                                                    .foregroundColor(.blue)
+                                            }
+                                        }
                                         
-                                        Text("\(String(format: "%.1f", activity.quantity)) \(activity.unit)")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
+                                        Spacer()
+                                        
+                                        Text("\(String(format: "%.2f", activity.totalEmissions)) kg CO₂")
+                                            .font(.subheadline)
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(.primary)
                                     }
                                     
-                                    Spacer()
-                                    
-                                    Text("\(String(format: "%.2f", activity.totalEmissions)) kg CO₂")
-                                        .font(.subheadline)
-                                        .fontWeight(.semibold)
-                                        .foregroundColor(.primary)
+                                    if let route = activity.route {
+                                        Divider()
+                                        HStack {
+                                            Label(route.formattedDistance, systemImage: "ruler")
+                                                .font(.caption2)
+                                                .foregroundColor(.secondary)
+                                            
+                                            Spacer()
+                                            
+                                            Label(route.formattedDuration, systemImage: "clock")
+                                                .font(.caption2)
+                                                .foregroundColor(.secondary)
+                                        }
+                                    }
                                 }
+                                .padding(.vertical, 4)
                             }
                         }
                     }

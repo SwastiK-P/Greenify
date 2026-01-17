@@ -203,7 +203,7 @@ class ScanViewModel: NSObject, ObservableObject {
             processingStage = .generatingInstructions
             let instructions = try await classificationService.generateRecyclingInstructions(for: classification.objectName)
             
-            // Step 3: Combine results
+            // Step 3: Combine results with image
             let item = ScannedItem(
                 name: classification.objectName,
                 category: instructions.category,
@@ -211,7 +211,8 @@ class ScanViewModel: NSObject, ObservableObject {
                 confidence: classification.confidence,
                 disposalInstructions: instructions.instructions,
                 environmentalImpact: instructions.impact,
-                alternatives: instructions.alternatives
+                alternatives: instructions.alternatives,
+                image: image
             )
             
             scannedItem = item
@@ -255,7 +256,8 @@ class ScanViewModel: NSObject, ObservableObject {
                 confidence: classification.confidence,
                 disposalInstructions: "Please check local recycling guidelines for \(classification.objectName).",
                 environmentalImpact: "Proper disposal helps reduce environmental impact.",
-                alternatives: ["Consider reusable alternatives", "Reduce consumption"]
+                alternatives: ["Consider reusable alternatives", "Reduce consumption"],
+                image: image
             )
             
             scannedItem = item
@@ -358,17 +360,52 @@ class ScanViewModel: NSObject, ObservableObject {
     private func addToHistory(_ item: ScannedItem) {
         scanHistory.insert(item, at: 0)
         
-        // Keep only last 20 items
+        // Keep only last 20 items - delete old items and their images
         if scanHistory.count > 20 {
+            let itemsToRemove = Array(scanHistory.suffix(scanHistory.count - 20))
+            for item in itemsToRemove {
+                if let fileName = item.imageFileName {
+                    deleteImageFile(fileName: fileName)
+                }
+            }
             scanHistory = Array(scanHistory.prefix(20))
         }
         
         saveScanHistory()
     }
     
+    func deleteScan(_ item: ScannedItem) {
+        // Delete the image file
+        if let fileName = item.imageFileName {
+            deleteImageFile(fileName: fileName)
+        }
+        
+        // Remove from history
+        scanHistory.removeAll { $0.id == item.id }
+        saveScanHistory()
+        
+        // Haptic feedback
+        HapticManager.shared.mediumImpact()
+    }
+    
     func clearScanHistory() {
+        // Delete image files before clearing history
+        for item in scanHistory {
+            if let fileName = item.imageFileName {
+                deleteImageFile(fileName: fileName)
+            }
+        }
         scanHistory.removeAll()
         saveScanHistory()
+    }
+    
+    private func deleteImageFile(fileName: String) {
+        guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return
+        }
+        
+        let fileURL = documentsDirectory.appendingPathComponent(fileName)
+        try? FileManager.default.removeItem(at: fileURL)
     }
     
     func getRecyclableItemsCount() -> Int {
@@ -411,8 +448,9 @@ struct ScannedItem: Identifiable, Codable, Equatable {
     let environmentalImpact: String
     let alternatives: [String]
     let scannedDate: Date
+    let imageFileName: String? // Store image file name
     
-    init(name: String, category: RecyclableItem, isRecyclable: Bool, confidence: Double, disposalInstructions: String, environmentalImpact: String, alternatives: [String]) {
+    init(name: String, category: RecyclableItem, isRecyclable: Bool, confidence: Double, disposalInstructions: String, environmentalImpact: String, alternatives: [String], image: UIImage? = nil) {
         self.id = UUID()
         self.name = name
         self.category = category
@@ -422,6 +460,58 @@ struct ScannedItem: Identifiable, Codable, Equatable {
         self.environmentalImpact = environmentalImpact
         self.alternatives = alternatives
         self.scannedDate = Date()
+        
+        // Save image to file system and store filename
+        if let image = image {
+            self.imageFileName = ScannedItem.saveImageToFileSystem(image: image, itemId: self.id)
+        } else {
+            self.imageFileName = nil
+        }
+    }
+    
+    // Load image from file system
+    var image: UIImage? {
+        guard let fileName = imageFileName else { return nil }
+        return ScannedItem.loadImageFromFileSystem(fileName: fileName)
+    }
+    
+    // Save image to documents directory
+    static func saveImageToFileSystem(image: UIImage, itemId: UUID) -> String? {
+        guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        
+        let fileName = "\(itemId.uuidString).jpg"
+        let fileURL = documentsDirectory.appendingPathComponent(fileName)
+        
+        // Compress image to JPEG
+        guard let imageData = image.jpegData(compressionQuality: 0.7) else {
+            return nil
+        }
+        
+        do {
+            try imageData.write(to: fileURL)
+            return fileName
+        } catch {
+            print("Failed to save image: \(error)")
+            return nil
+        }
+    }
+    
+    // Load image from documents directory
+    static func loadImageFromFileSystem(fileName: String) -> UIImage? {
+        guard let documentsDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        
+        let fileURL = documentsDirectory.appendingPathComponent(fileName)
+        
+        guard let imageData = try? Data(contentsOf: fileURL),
+              let image = UIImage(data: imageData) else {
+            return nil
+        }
+        
+        return image
     }
     
     var confidencePercentage: String {

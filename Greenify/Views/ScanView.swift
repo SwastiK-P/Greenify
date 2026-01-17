@@ -52,7 +52,7 @@ struct ScanView: View {
             }
             .sheet(isPresented: $showingItemDetail) {
                 if let scannedItem = viewModel.scannedItem {
-                    ScannedItemDetailView(item: scannedItem)
+                    ScannedItemDetailView(item: scannedItem, viewModel: viewModel)
                 }
             }
             .sheet(isPresented: $showingScanHistory) {
@@ -293,12 +293,25 @@ struct ScanView: View {
                 }
                 
                 HStack(spacing: 16) {
-                    Image(systemName: item.category.icon)
-                        .font(.title)
-                        .foregroundColor(Color(item.category.color))
-                        .frame(width: 50, height: 50)
-                        .background(Color(item.category.color).opacity(0.1))
-                        .cornerRadius(10)
+                    // Display captured image or fallback icon
+                    if let image = item.image {
+                        Image(uiImage: image)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 60, height: 60)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color(.systemGray4), lineWidth: 0.5)
+                            )
+                    } else {
+                        Image(systemName: item.category.icon)
+                            .font(.title)
+                            .foregroundColor(Color(item.category.color))
+                            .frame(width: 60, height: 60)
+                            .background(Color(item.category.color).opacity(0.1))
+                            .cornerRadius(10)
+                    }
                     
                     VStack(alignment: .leading, spacing: 4) {
                         Text(item.name)
@@ -418,7 +431,14 @@ struct HowItWorksStep: View {
 
 struct ScannedItemDetailView: View {
     let item: ScannedItem
+    let viewModel: ScanViewModel?
     @Environment(\.dismiss) private var dismiss
+    @State private var showDeleteConfirmation = false
+    
+    init(item: ScannedItem, viewModel: ScanViewModel? = nil) {
+        self.item = item
+        self.viewModel = viewModel
+    }
     
     var body: some View {
         NavigationView {
@@ -444,11 +464,31 @@ struct ScannedItemDetailView: View {
             .navigationTitle("Scan Result")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    if viewModel != nil {
+                        Button(role: .destructive) {
+                            showDeleteConfirmation = true
+                        } label: {
+                            Image(systemName: "trash")
+                                .foregroundColor(.red)
+                        }
+                    }
+                }
+                
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
                         dismiss()
                     }
                 }
+            }
+            .confirmationDialog("Delete Scan", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
+                Button("Delete", role: .destructive) {
+                    viewModel?.deleteScan(item)
+                    dismiss()
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("Are you sure you want to delete this scan? This action cannot be undone.")
             }
         }
     }
@@ -456,9 +496,27 @@ struct ScannedItemDetailView: View {
     private var headerSection: some View {
         CardView {
             VStack(spacing: 16) {
-                Image(systemName: item.category.icon)
-                    .font(.system(size: 60))
-                    .foregroundColor(Color(item.category.color))
+                // Display captured image prominently
+                if let image = item.image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 200, height: 200)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(Color(.systemGray4), lineWidth: 1)
+                        )
+                        .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+                } else {
+                    // Fallback to icon if no image
+                    Image(systemName: item.category.icon)
+                        .font(.system(size: 60))
+                        .foregroundColor(Color(item.category.color))
+                        .frame(width: 200, height: 200)
+                        .background(Color(item.category.color).opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                }
                 
                 Text(item.name)
                     .font(.title)
@@ -572,7 +630,16 @@ struct ScanHistoryView: View {
                 } else {
                     List {
                         ForEach(viewModel.scanHistory) { item in
-                            ScanHistoryRow(item: item)
+                            NavigationLink(destination: ScannedItemDetailView(item: item, viewModel: viewModel)) {
+                                ScanHistoryRow(item: item)
+                            }
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    viewModel.deleteScan(item)
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
                         }
                     }
                 }
@@ -604,12 +671,25 @@ struct ScanHistoryRow: View {
     
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: item.category.icon)
-                .font(.title2)
-                .foregroundColor(Color(item.category.color))
-                .frame(width: 40, height: 40)
-                .background(Color(item.category.color).opacity(0.1))
-                .cornerRadius(8)
+            // Display captured image or fallback icon
+            if let image = item.image {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 50, height: 50)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color(.systemGray4), lineWidth: 0.5)
+                    )
+            } else {
+                Image(systemName: item.category.icon)
+                    .font(.title2)
+                    .foregroundColor(Color(item.category.color))
+                    .frame(width: 50, height: 50)
+                    .background(Color(item.category.color).opacity(0.1))
+                    .cornerRadius(8)
+            }
             
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.name)

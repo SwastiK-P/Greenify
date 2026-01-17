@@ -23,7 +23,7 @@ struct CarbonFootprint {
     }
 }
 
-enum ActivityType: String, CaseIterable {
+enum ActivityType: String, CaseIterable, Codable {
     case transport = "Transport"
     case electricity = "Electricity"
     case food = "Food"
@@ -51,25 +51,61 @@ enum ActivityType: String, CaseIterable {
     }
 }
 
-struct Activity: Identifiable {
+struct Activity: Identifiable, Codable {
     let id: UUID
     let type: ActivityType
     let name: String
     let emissionFactor: Double // kg CO2 per unit
     let unit: String
     var quantity: Double = 0
+    var route: RouteInfo? // Route information for transport activities
     
     var totalEmissions: Double {
         return quantity * emissionFactor
     }
     
-    init(id: UUID = UUID(), type: ActivityType, name: String, emissionFactor: Double, unit: String, quantity: Double = 0) {
+    var displayName: String {
+        if let route = route {
+            return "\(name) - \(route.routeName)"
+        }
+        return name
+    }
+    
+    init(id: UUID = UUID(), type: ActivityType, name: String, emissionFactor: Double, unit: String, quantity: Double = 0, route: RouteInfo? = nil) {
         self.id = id
         self.type = type
         self.name = name
         self.emissionFactor = emissionFactor
         self.unit = unit
         self.quantity = quantity
+        self.route = route
+    }
+}
+
+struct RouteInfo: Codable {
+    let routeName: String
+    let from: String
+    let to: String
+    let distance: Double // km
+    let duration: Double // minutes
+    let waypoints: [String] // Intermediate locations
+    
+    var formattedDistance: String {
+        if distance < 1 {
+            return String(format: "%.0f m", distance * 1000)
+        } else {
+            return String(format: "%.1f km", distance)
+        }
+    }
+    
+    var formattedDuration: String {
+        if duration < 60 {
+            return String(format: "%.0f min", duration)
+        } else {
+            let hours = Int(duration / 60)
+            let minutes = Int(duration.truncatingRemainder(dividingBy: 60))
+            return "\(hours)h \(minutes)m"
+        }
     }
 }
 
