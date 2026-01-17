@@ -1,111 +1,134 @@
-# Greenify - Sustainability iOS App
+# 🌱 Greenify
 
-A comprehensive SwiftUI iOS app focused on sustainability and environmental awareness, built with modern iOS design principles and MVVM architecture.
+> Making sustainability tracking as easy as having a conversation
 
-## Features
+A comprehensive iOS app that helps users track their carbon footprint through natural language conversations, find nearby recycling centers, scan items for recyclability, and learn about sustainable living.
 
-### 🏠 Home Tab
-- Carbon footprint summary with daily, weekly, monthly projections
-- Sustainability rating with personalized feedback
-- Quick action buttons for easy navigation
-- Daily sustainability tips
-- Progress tracking towards emission goals
+[![iOS](https://img.shields.io/badge/iOS-16.0+-blue.svg)](https://developer.apple.com/ios/)
+[![Swift](https://img.shields.io/badge/Swift-5.9+-orange.svg)](https://swift.org/)
 
-### 🧮 Carbon Calculator Tab
-- Interactive carbon footprint calculator
-- Activity-based emissions tracking (Transport, Electricity, Food, etc.)
-- Real-time calculations with visual feedback
-- Detailed emission breakdowns by category
-- Sustainability recommendations
-- Time period projections (daily, weekly, monthly, yearly)
+---
 
-### 📷 Scan Tab
-- Camera-based item scanning for recyclability
-- AI-powered item recognition (simulated)
-- Disposal instructions and environmental impact info
+## ✨ Features
+
+### 🧮 Chat-Based Carbon Calculator
+- Natural language activity logging - just chat about your day
+- AI-powered extraction using Google Gemini API
+- Real-time CO₂ calculations with visual breakdowns
+- Activity categories: Transport, Electricity, Food, Waste, Water
+
+### 📷 AI Object Scanner
+- Camera-based recyclability detection
+- MobileNet V3 ML model for on-device recognition
+- Instant disposal instructions and environmental impact
 - Sustainable alternatives suggestions
-- Scan history tracking
-- Recyclability statistics
 
-### ♻️ Recycling Tab
+### ♻️ Recycling Finder
 - Interactive map of nearby recycling centers
 - Material-based filtering (Plastic, Paper, Glass, Metal, etc.)
-- Detailed center information with operating hours
-- Distance-based sorting
-- Contact information and directions
-- Comprehensive recycling tips
+- Distance sorting and detailed center information
 
-### 📚 Learn Tab
-- Educational articles on sustainability topics
-- Category-based filtering (Climate Change, Renewable Energy, etc.)
-- Difficulty levels (Beginner, Intermediate, Advanced)
-- Bookmark functionality
-- Search and filtering capabilities
-- Reading progress tracking
+### 📚 Learn & Events
+- Educational articles and YouTube videos
+- Local carbon offset events with registration
+- Bookmark and search functionality
 
-## Architecture
+### 🏠 Home Dashboard
+- Carbon footprint summary (daily, weekly, monthly)
+- Sustainability rating with personalized feedback
+- Progress tracking and daily tips
 
-### MVVM Pattern
-- **Models**: Data structures for carbon footprint, recycling centers, articles, and scanned items
-- **ViewModels**: Business logic and state management with `@ObservableObject`
-- **Views**: SwiftUI views with clean separation of concerns
+---
 
-### Key Components
-- **Reusable UI Components**: CardView, StatCardView, ActionCardView, ChartView, EmptyStateView
-- **Data Models**: CarbonFootprint, RecyclingCenter, Article, ScannedItem with mock data
-- **ViewModels**: Reactive state management with Combine framework
+## 🛠 Tech Stack
 
-## Technical Features
+**Frontend:** SwiftUI • UIKit • MVVM • Combine  
+**AI/ML:** Core ML • Vision Framework • MobileNet V3 • Google Gemini API  
+**APIs:** Google Maps SDK • YouTube Data API • Mappls API  
+**Platform:** iOS 16.0+ • Swift 5.9+ • Xcode 15.0+
 
-### Modern iOS Design
-- iOS 16+ design language with clean, Apple-like aesthetics
-- Dynamic Type support for accessibility
-- Dark mode compatibility
-- Smooth animations and transitions
-- Native SwiftUI components
+---
 
-### Performance Optimizations
-- Lazy loading for large lists
-- Efficient state management
-- Debounced search functionality
-- Memory-efficient image handling
+## 📦 Installation
 
-### User Experience
-- Intuitive navigation with TabView
-- Pull-to-refresh functionality
-- Search and filtering capabilities
-- Contextual empty states
-- Loading indicators
+1. Clone the repository
+   ```bash
+   git clone https://github.com/yourusername/Greenify.git
+   cd Greenify
+   ```
 
-## Mock Data
+2. Open `Greenify.xcodeproj` in Xcode
 
-The app includes comprehensive mock data for demonstration:
-- **Activities**: 15+ predefined activities with emission factors
-- **Recycling Centers**: 4 mock centers with realistic data
-- **Articles**: 5 detailed educational articles
-- **Scan Results**: 5 different item types with disposal instructions
+3. Configure API keys in `Greenify/Config.swift`:
+   - **Gemini API Key** (Required) - Get from https://makersuite.google.com/app/apikey
+   - **YouTube API Key** (Required) - Get from https://console.cloud.google.com/
+   - **Mappls API Key** (Optional) - Get from https://developer.mappls.com/
 
-## Requirements
+4. Build and run (`Cmd + R`)
+
+---
+
+## 📱 Usage
+
+### Log Activities via Chat
+```
+You: "I drove 15km to work"
+AI: "What type of car?"
+You: "Petrol car"
+✅ Logged: Car (Petrol) - 15 km - 3.15 kg CO₂
+```
+
+### Scan Items
+- Open Scan tab → Tap camera → Point at item → View recycling instructions
+
+### Find Recycling Centers
+- Open Recycling tab → View map/list → Filter by material → Get directions
+
+---
+
+## ⚙️ Configuration
+
+Add your API keys in `Greenify/Config.swift`:
+
+```swift
+static let geminiAPIKey = "YOUR_GEMINI_API_KEY"
+static let youtubeAPIKey = "YOUR_YOUTUBE_API_KEY"
+static let mapplsAPIKey = "YOUR_MAPPLS_API_KEY" // Optional
+```
+
+⚠️ **Never commit API keys to version control!**
+
+---
+
+## 🏗 Architecture
+
+**MVVM Pattern:**
+- **Views** - SwiftUI UI layer
+- **ViewModels** - Business logic with Combine
+- **Models** - Data structures
+
+**Key Components:**
+- `CarbonCalculatorViewModel` - Chat-based tracking
+- `ScanViewModel` - Object recognition
+- `RecyclingViewModel` - Center management
+- `GeminiService` - AI conversation
+- `ObjectClassificationService` - ML model handling
+
+---
+
+## 📋 Requirements
 
 - iOS 16.0+
 - Xcode 15.0+
 - Swift 5.9+
+- API keys for Gemini and YouTube (see Configuration)
 
-## Installation
+---
 
-1. Clone the repository
-2. Open `Greenify.xcodeproj` in Xcode
-3. Build and run on simulator or device
+## 📄 License
 
-## Future Enhancements
+This project is created for educational purposes and demonstrates modern iOS development with SwiftUI and MVVM architecture.
 
-- Real API integration for recycling centers
-- CoreML integration for actual item recognition
-- User authentication and data persistence
-- Social features and community challenges
-- Push notifications for sustainability reminders
-- Apple Watch companion app
+---
 
-## License
-
-This project is created for educational purposes and demonstrates modern iOS development practices with SwiftUI and MVVM architecture.
+**Built with ❤️ for a sustainable future** 🌍
