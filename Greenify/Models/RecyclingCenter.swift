@@ -25,6 +25,10 @@ struct RecyclingCenter: Identifiable, Codable {
     var coordinate: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
     }
+    
+    var hours: String {
+        return operatingHours
+    }
 }
 
 enum RecyclableItem: String, CaseIterable, Codable {

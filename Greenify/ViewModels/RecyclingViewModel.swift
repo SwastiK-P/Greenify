@@ -89,11 +89,164 @@ class RecyclingViewModel: NSObject, ObservableObject {
     }
     
     func refreshData() {
-        loadMockData()
-        if locationManager.authorizationStatus == .authorizedWhenInUse ||
-           locationManager.authorizationStatus == .authorizedAlways {
-            locationManager.startUpdatingLocation()
+        if let userLocation = userLocation {
+            Task {
+                await searchRecyclingCenters(near: userLocation, query: nil)
+            }
+        } else {
+            loadMockData()
+            if locationManager.authorizationStatus == .authorizedWhenInUse ||
+               locationManager.authorizationStatus == .authorizedAlways {
+                locationManager.startUpdatingLocation()
+            }
         }
+    }
+    
+    func searchRecyclingCenters(near coordinate: CLLocationCoordinate2D?, query: String?) async {
+        await searchNearbyRecyclingCenters(near: coordinate, query: query)
+    }
+    
+    private func searchNearbyRecyclingCenters(near coordinate: CLLocationCoordinate2D?, query: String?) async {
+        isLoading = true
+        errorMessage = nil
+        
+        // Use query if provided, otherwise default to "recycling center"
+        let searchQuery = query ?? "recycling center"
+        
+        // Use coordinate if provided, otherwise use current region center
+        let searchCoordinate = coordinate ?? region.center
+        
+        // Search for recycling centers
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = searchQuery
+        request.region = MKCoordinateRegion(
+            center: searchCoordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
+        )
+        
+        let search = MKLocalSearch(request: request)
+        let viewModel = self // Capture self explicitly
+        let coord = searchCoordinate // Capture coordinate for closure
+        search.start { response, error in
+            Task { @MainActor in
+                if let error = error {
+                    viewModel.errorMessage = "Failed to search: \(error.localizedDescription)"
+                    viewModel.isLoading = false
+                    // Fallback to mock data on error
+                    viewModel.loadMockData()
+                    return
+                }
+                
+                guard let response = response else {
+                    viewModel.isLoading = false
+                    viewModel.loadMockData()
+                    return
+                }
+                
+                // Convert MKMapItem results to RecyclingCenter objects
+                var centers: [RecyclingCenter] = []
+                let userLocation = CLLocation(latitude: coord.latitude, longitude: coord.longitude)
+                
+                for item in response.mapItems {
+                    // Extract phone number from MKMapItem
+                    // MKMapItem has phoneNumber property that contains the business phone
+                    let phoneNumber = item.phoneNumber
+                    
+                    // Get address from placemark components
+                    var address = "Address not available"
+                    let placemark = item.placemark
+                    
+                    // Build address from placemark components
+                    var components: [String] = []
+                    if let thoroughfare = placemark.thoroughfare {
+                        components.append(thoroughfare)
+                    }
+                    if let subThoroughfare = placemark.subThoroughfare {
+                        components.insert(subThoroughfare, at: 0)
+                    }
+                    if let locality = placemark.locality {
+                        components.append(locality)
+                    }
+                    if let administrativeArea = placemark.administrativeArea {
+                        components.append(administrativeArea)
+                    }
+                    if let postalCode = placemark.postalCode {
+                        components.append(postalCode)
+                    }
+                    if let country = placemark.country {
+                        components.append(country)
+                    }
+                    
+                    if !components.isEmpty {
+                        address = components.joined(separator: ", ")
+                    } else {
+                        // Fallback to item name
+                        address = item.name ?? address
+                    }
+                    
+                    // Calculate distance
+                    let itemLocation = CLLocation(
+                        latitude: item.placemark.coordinate.latitude,
+                        longitude: item.placemark.coordinate.longitude
+                    )
+                    let distance = userLocation.distance(from: itemLocation) / 1000 // Convert to km
+                    
+                    // Determine accepted materials based on name/keywords
+                    let acceptedMaterials = viewModel.determineAcceptedMaterials(from: item.name ?? "")
+                    
+                    // Get operating hours if available (would need additional API call)
+                    let operatingHours = "Check local listing"
+                    
+                    let center = RecyclingCenter(
+                        id: UUID(),
+                        name: item.name ?? "Recycling Center",
+                        address: address,
+                        latitude: item.placemark.coordinate.latitude,
+                        longitude: item.placemark.coordinate.longitude,
+                        acceptedMaterials: acceptedMaterials,
+                        operatingHours: operatingHours,
+                        phoneNumber: phoneNumber,
+                        website: item.url?.absoluteString,
+                        distance: distance
+                    )
+                    
+                    centers.append(center)
+                }
+                
+                // Sort by distance
+                centers.sort { ($0.distance ?? Double.greatestFiniteMagnitude) < ($1.distance ?? Double.greatestFiniteMagnitude) }
+                
+                viewModel.recyclingCenters = centers
+                viewModel.isLoading = false
+            }
+        }
+    }
+    
+    private func determineAcceptedMaterials(from name: String) -> [String] {
+        let nameLower = name.lowercased()
+        var materials: [String] = []
+        
+        // Check for specific material types in the name
+        if nameLower.contains("paper") || nameLower.contains("savariya") {
+            materials.append("Paper")
+        }
+        if nameLower.contains("electronic") || nameLower.contains("e-waste") || nameLower.contains("ecotech") {
+            materials.append("Electronics")
+            materials.append("Batteries")
+        }
+        if nameLower.contains("compost") || nameLower.contains("organic") {
+            materials.append("Organic Waste")
+        }
+        if nameLower.contains("textile") || nameLower.contains("clothing") {
+            materials.append("Textiles")
+        }
+        
+        // Default to mixed recycling if no specific materials found
+        if materials.isEmpty {
+            materials.append("Mixed recycling")
+        }
+        
+        return materials
     }
 }
 

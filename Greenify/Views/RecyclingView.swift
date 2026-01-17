@@ -41,29 +41,10 @@ final class LocationManager: NSObject, ObservableObject, CLLocationManagerDelega
         }
     }
     
-    func requestLocationUpdate() {
-        guard authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways else {
-            requestWhenInUse()
-            return
-        }
-        
-        // Force a new location update
-        manager.stopUpdatingLocation()
-        manager.startUpdatingLocation()
-    }
-    
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        let newStatus = manager.authorizationStatus
-        authorizationStatus = newStatus
-        
-        if newStatus == .authorizedWhenInUse || newStatus == .authorizedAlways {
-            // Start updating location when permission is granted
+        authorizationStatus = manager.authorizationStatus
+        if authorizationStatus == .authorizedWhenInUse || authorizationStatus == .authorizedAlways {
             manager.startUpdatingLocation()
-            
-            // If we have a cached location, use it immediately
-            if let cachedLocation = manager.location {
-                lastLocation = cachedLocation
-            }
         }
     }
     
@@ -88,30 +69,41 @@ struct RecyclingView: View {
     @StateObject private var locationManager = LocationManager()
     @State private var selectedCardIndex: Int = 0
     @FocusState private var isSearchFocused: Bool
-    @State private var cameraPosition: MapCameraPosition = .region(MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 19.2183, longitude: 72.9781),
-        span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
-    ))
     
     var body: some View {
         NavigationStack {
             ZStack {
-                Map(position: $cameraPosition) {
-                    ForEach(viewModel.recyclingCenters) { center in
-                        let centerIndex = viewModel.recyclingCenters.firstIndex(where: { $0.id == center.id }) ?? 0
-                        let isSelected = selectedCardIndex == centerIndex
+                Map(coordinateRegion: $viewModel.region, annotationItems: viewModel.recyclingCenters) { center in
+                    MapAnnotation(coordinate: center.coordinate) {
+                        let index = viewModel.recyclingCenters.firstIndex(where: { $0.id == center.id }) ?? 0
+                        let isSelected = index == selectedCardIndex
                         
-                        Annotation(center.name, coordinate: center.coordinate) {
-                            RecyclingMapPin(
-                                center: center,
-                                isSelected: isSelected
-                            ) {
-                                selectedCardIndex = centerIndex
+                        Button {
+                            viewModel.selectedCenter = center
+                            selectedCardIndex = index
+                        } label: {
+                            ZStack {
+                                if isSelected {
+                                    Circle()
+                                        .fill(Color.green.opacity(0.2))
+                                        .frame(width: 32, height: 32)
+                                        .shadow(color: .black.opacity(0.25), radius: 4, x: 0, y: 2)
+                                }
+                                
+                                Image(systemName: "arrow.3.trianglepath")
+                                    .font(isSelected ? .body : .callout)
+                                    .fontWeight(.semibold)
+                                    .padding(5)
+                                    .background(
+                                        Circle()
+                                            .fill(isSelected ? Color.green : Color.white)
+                                    )
+                                    .foregroundStyle(isSelected ? Color.white : Color.green)
+                                    .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
                             }
                         }
                     }
                 }
-                .mapStyle(.standard)
                 .ignoresSafeArea()
                 
                 VStack {
@@ -120,14 +112,29 @@ struct RecyclingView: View {
                         Image(systemName: "magnifyingglass")
                             .foregroundStyle(.secondary)
                         
-                         TextField("Search location for recycling centers", text: $viewModel.searchText)
-                             .textFieldStyle(.plain)
-                             .submitLabel(.search)
-                             .focused($isSearchFocused)
+                        TextField("Search location for recycling centers", text: $viewModel.searchText)
+                            .textFieldStyle(.plain)
+                            .submitLabel(.search)
+                            .focused($isSearchFocused)
+                            .onSubmit {
+                                Task {
+                                    await viewModel.searchRecyclingCenters(
+                                        near: nil,
+                                        query: viewModel.searchText
+                                    )
+                                }
+                            }
                         
                         if !viewModel.searchText.isEmpty {
                             Button {
                                 viewModel.searchText = ""
+                                Task {
+                                    let coord = locationManager.lastLocation?.coordinate
+                                    await viewModel.searchRecyclingCenters(
+                                        near: coord,
+                                        query: nil
+                                    )
+                                }
                             } label: {
                                 Image(systemName: "xmark.circle.fill")
                                     .foregroundStyle(.secondary)
@@ -136,37 +143,34 @@ struct RecyclingView: View {
                     }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
-                    .liquidGlass(cornerRadius: 18)
+                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                     .padding(.horizontal)
                     .padding(.top, 8)
                     
                     // Use my location pill
-                    Button {
-                        locationManager.requestLocationUpdate()
-                        
-                        // If we already have a location, use it immediately
-                        if let location = locationManager.lastLocation {
-                            let newRegion = MKCoordinateRegion(
-                                center: location.coordinate,
-                                span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
-                            )
-                            withAnimation(.easeInOut(duration: 0.5)) {
-                                cameraPosition = .region(newRegion)
-                                viewModel.region = newRegion
+                    if locationManager.authorizationStatus == .authorizedWhenInUse ||
+                        locationManager.authorizationStatus == .authorizedAlways {
+                        Button {
+                            Task {
+                                let coord = locationManager.lastLocation?.coordinate
+                                await viewModel.searchRecyclingCenters(
+                                    near: coord,
+                                    query: viewModel.searchText.isEmpty ? nil : viewModel.searchText
+                                )
                             }
+                        } label: {
+                            Label("Use my location", systemImage: "location.fill")
+                                .font(.subheadline.weight(.medium))
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(
+                                    Capsule(style: .continuous)
+                                        .fill(Color.accentColor.opacity(0.9))
+                                )
+                                .foregroundStyle(.white)
                         }
-                    } label: {
-                        Label("Use my location", systemImage: "location.fill")
-                            .font(.subheadline.weight(.medium))
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background(
-                                Capsule(style: .continuous)
-                                    .fill(Color.accentColor.opacity(0.9))
-                            )
-                            .foregroundStyle(.white)
+                        .padding(.top, 6)
                     }
-                    .padding(.top, 6)
                     
                     if viewModel.isLoading {
                         ProgressView("Searching nearby recycling centers…")
@@ -178,50 +182,48 @@ struct RecyclingView: View {
                 
                 // Bottom cards above tab bar (hidden while searching/loading or editing search)
                 if !viewModel.isLoading && !viewModel.recyclingCenters.isEmpty && !isSearchFocused {
-                    GeometryReader { geometry in
-                        VStack {
-                            Spacer()
-                            TabView(selection: $selectedCardIndex) {
-                                ForEach(Array(viewModel.recyclingCenters.enumerated()), id: \.element.id) { index, center in
-                                    RecyclingCenterCard(center: center) {
-                                        viewModel.selectedCenter = center
-                                    }
-                                    .frame(width: geometry.size.width * 0.88, height: 190)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .tag(index)
+                    VStack {
+                        Spacer()
+                        TabView(selection: $selectedCardIndex) {
+                            ForEach(Array(viewModel.recyclingCenters.enumerated()), id: \.element.id) { index, center in
+                                RecyclingCenterCard(center: center) {
+                                    viewModel.selectedCenter = center
                                 }
+                                .frame(width: UIScreen.main.bounds.width * 0.88, height: 190)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .tag(index)
                             }
-                            .tabViewStyle(.page(indexDisplayMode: .never))
-                            .frame(height: 210)
-                            .padding(.horizontal, -8)
-                            .background(
-                                LinearGradient(
-                                    colors: [
-                                        Color(.systemBackground).opacity(0.0),
-                                        Color(.systemBackground).opacity(0.9)
-                                    ],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                                .ignoresSafeArea(edges: .bottom)
+                        }
+                        .tabViewStyle(.page(indexDisplayMode: .never))
+                        .frame(height: 210)
+                        .padding(.horizontal, -8)
+                        .background(
+                            LinearGradient(
+                                colors: [
+                                    Color(.systemBackground).opacity(0.0),
+                                    Color(.systemBackground).opacity(0.9)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
                             )
-                            .onChange(of: selectedCardIndex) { oldValue, newIndex in
-                                guard viewModel.recyclingCenters.indices.contains(newIndex) else { return }
-                                let center = viewModel.recyclingCenters[newIndex]
-                                
-                                // Snap map to selected center
-                                withAnimation {
-                                    cameraPosition = .region(MKCoordinateRegion(
-                                        center: center.coordinate,
-                                        span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
-                                    ))
-                                }
-                                
-                                // Haptic feedback on snap
-                                let generator = UIImpactFeedbackGenerator(style: .medium)
-                                generator.impactOccurred()
+                            .ignoresSafeArea(edges: .bottom)
+                        )
+                        .onChange(of: selectedCardIndex) { oldValue, newIndex in
+                            guard viewModel.recyclingCenters.indices.contains(newIndex) else { return }
+                            let center = viewModel.recyclingCenters[newIndex]
+                            
+                            // Snap map to selected center
+                            withAnimation {
+                                viewModel.region = MKCoordinateRegion(
+                                    center: center.coordinate,
+                                    span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+                                )
                             }
+                            
+                            // Haptic feedback on snap
+                            let generator = UIImpactFeedbackGenerator(style: .medium)
+                            generator.impactOccurred()
                         }
                     }
                 }
@@ -235,20 +237,16 @@ struct RecyclingView: View {
                 // Ask for permission on first load; actual search will be triggered
                 // when we have a real location or the user performs a search.
                 locationManager.requestWhenInUse()
-                // Sync camera position with viewModel region
-                cameraPosition = .region(viewModel.region)
             }
-             .onChange(of: locationManager.lastLocation) { oldLocation, newLocation in
-                 // Update region when location changes
-                 if let coord = newLocation?.coordinate {
-                     let newRegion = MKCoordinateRegion(
-                         center: coord,
-                         span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
-                     )
-                     viewModel.region = newRegion
-                     cameraPosition = .region(newRegion)
-                 }
-             }
+            .onChange(of: locationManager.lastLocation) { oldLocation, newLocation in
+                guard let coord = newLocation?.coordinate else { return }
+                Task {
+                    await viewModel.searchRecyclingCenters(
+                        near: coord,
+                        query: viewModel.searchText.isEmpty ? nil : viewModel.searchText
+                    )
+                }
+            }
             .overlay(alignment: .top) {
                 if let message = viewModel.errorMessage {
                     Text(message)
@@ -306,7 +304,7 @@ struct RecyclingCenterDetailView: View {
                         Label("Hours", systemImage: "clock")
                             .font(.headline)
                         
-                         Text(center.operatingHours)
+                        Text(center.hours)
                             .font(.body)
                     }
                     
@@ -429,38 +427,6 @@ struct FlowLayout: Layout {
     }
 }
 
-// MARK: - Supporting Components
-
-struct RecyclingMapPin: View {
-    let center: RecyclingCenter
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            ZStack {
-                if isSelected {
-                    Circle()
-                        .fill(Color.green.opacity(0.2))
-                        .frame(width: 32, height: 32)
-                        .shadow(color: .black.opacity(0.25), radius: 4, x: 0, y: 2)
-                }
-                
-                Image(systemName: "arrow.3.trianglepath")
-                    .font(isSelected ? .body : .callout)
-                    .fontWeight(.semibold)
-                    .padding(5)
-                    .background(
-                        Circle()
-                            .fill(isSelected ? Color.green : Color.white)
-                    )
-                    .foregroundStyle(isSelected ? Color.white : Color.green)
-                    .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
-            }
-        }
-    }
-}
-
 struct RecyclingCenterCard: View {
     let center: RecyclingCenter
     let action: () -> Void
@@ -526,7 +492,7 @@ struct RecyclingCenterCard: View {
                 }
             }
             .padding(16)
-            .liquidGlass(cornerRadius: 16)
+            .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(PlainButtonStyle())
     }
