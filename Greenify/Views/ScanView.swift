@@ -13,6 +13,19 @@ struct ScanView: View {
     @State private var showingItemDetail = false
     @State private var showingScanHistory = false
     
+    private var processingStageText: String {
+        switch viewModel.processingStage {
+        case .idle:
+            return "Ready"
+        case .classifying:
+            return "Identifying object..."
+        case .generatingInstructions:
+            return "Generating instructions..."
+        case .complete:
+            return "Complete"
+        }
+    }
+    
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
@@ -85,10 +98,15 @@ struct ScanView: View {
     
     private var scanningView: some View {
         ZStack {
-            // Camera Preview (simulated)
-            Rectangle()
-                .fill(Color.black)
-                .ignoresSafeArea()
+            // Camera Preview
+            if let session = viewModel.getCaptureSession() {
+                CameraPreviewView(session: session)
+                    .ignoresSafeArea()
+            } else {
+                Rectangle()
+                    .fill(Color.black)
+                    .ignoresSafeArea()
+            }
             
             VStack {
                 Spacer()
@@ -150,8 +168,8 @@ struct ScanView: View {
                 .padding(.bottom, 50)
             }
             
-            // Loading overlay
-            if viewModel.isScanning && viewModel.scannedItem == nil {
+            // Loading overlay with processing stages
+            if viewModel.isProcessing {
                 Color.black.opacity(0.7)
                     .ignoresSafeArea()
                 
@@ -160,19 +178,30 @@ struct ScanView: View {
                         .scaleEffect(1.5)
                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
                     
-                    Text("Analyzing item...")
+                    Text(processingStageText)
                         .font(.headline)
                         .foregroundColor(.white)
+                        .multilineTextAlignment(.center)
+                    
+                    if viewModel.processingStage == .classifying {
+                        Text("Using FastViT model...")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.8))
+                    } else if viewModel.processingStage == .generatingInstructions {
+                        Text("Generating recycling instructions...")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.8))
+                    }
                 }
             }
         }
         .onAppear {
-            // Auto-scan after a delay for demo purposes
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                if viewModel.isScanning {
-                    viewModel.capturePhoto()
-                }
-            }
+            // Ensure camera session is running when view appears
+            viewModel.startCameraSession()
+        }
+        .onDisappear {
+            // Stop camera when view disappears
+            viewModel.stopScanning()
         }
         .onChange(of: viewModel.scannedItem) { _, newItem in
             if newItem != nil {

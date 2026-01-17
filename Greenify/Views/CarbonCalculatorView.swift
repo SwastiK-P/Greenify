@@ -12,6 +12,7 @@ struct CarbonCalculatorView: View {
     @State private var messageText = ""
     @State private var showingResults = false
     @State private var showingBreakdown = false
+    @State private var showingAutomatedTracking = false
     @FocusState private var isTextFieldFocused: Bool
     
     var body: some View {
@@ -95,6 +96,14 @@ struct CarbonCalculatorView: View {
             .navigationTitle("Carbon Calculator")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: {
+                        showingAutomatedTracking = true
+                    }) {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                    }
+                }
+                
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
                         Button("View Results") {
@@ -126,6 +135,9 @@ struct CarbonCalculatorView: View {
             }
             .sheet(isPresented: $showingBreakdown) {
                 EmissionBreakdownView(viewModel: viewModel)
+            }
+            .sheet(isPresented: $showingAutomatedTracking) {
+                AutomatedTrackingView(viewModel: AutomatedTrackingViewModel(carbonCalculatorViewModel: viewModel))
             }
             .alert("Error", isPresented: .constant(viewModel.errorMessage != nil)) {
                 Button("OK") {
