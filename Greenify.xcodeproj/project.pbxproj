@@ -6,8 +6,13 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		7A8EE2122F1BCFBD000C3C9D /* MobileNet V3 Model.mlmodel in Sources */ = {isa = PBXBuildFile; fileRef = 7A8EE2112F1BCFBD000C3C9D /* MobileNet V3 Model.mlmodel */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		7A5DA3F72F1B6499002386F4 /* Greenify.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Greenify.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		7A8EE2112F1BCFBD000C3C9D /* MobileNet V3 Model.mlmodel */ = {isa = PBXFileReference; lastKnownFileType = file.mlmodel; path = "MobileNet V3 Model.mlmodel"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -32,6 +37,7 @@
 		7A5DA3EE2F1B6499002386F4 = {
 			isa = PBXGroup;
 			children = (
+				7A8EE2112F1BCFBD000C3C9D /* MobileNet V3 Model.mlmodel */,
 				7A5DA3F92F1B6499002386F4 /* Greenify */,
 				7A5DA3F82F1B6499002386F4 /* Products */,
 			);
@@ -119,6 +125,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7A8EE2122F1BCFBD000C3C9D /* MobileNet V3 Model.mlmodel in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

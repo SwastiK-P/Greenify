@@ -78,6 +78,23 @@ struct ScanView: View {
                 // Header
                 headerSection
                 
+                // Error Message
+                if let error = viewModel.errorMessage {
+                    CardView(backgroundColor: Color.red.opacity(0.1)) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.red)
+                            
+                            Text(error)
+                                .font(.subheadline)
+                                .foregroundColor(.red)
+                                .multilineTextAlignment(.leading)
+                            
+                            Spacer()
+                        }
+                    }
+                }
+                
                 // Scan Button
                 scanButtonSection
                 
@@ -184,13 +201,21 @@ struct ScanView: View {
                         .multilineTextAlignment(.center)
                     
                     if viewModel.processingStage == .classifying {
-                        Text("Using FastViT model...")
+                        Text("Using MobileNet V3 model...")
                             .font(.caption)
                             .foregroundColor(.white.opacity(0.8))
                     } else if viewModel.processingStage == .generatingInstructions {
                         Text("Generating recycling instructions...")
                             .font(.caption)
                             .foregroundColor(.white.opacity(0.8))
+                    }
+                    
+                    if let error = viewModel.errorMessage {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundColor(.red)
+                            .padding(.horizontal)
+                            .multilineTextAlignment(.center)
                     }
                 }
             }

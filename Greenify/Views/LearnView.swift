@@ -587,11 +587,8 @@ struct ArticleDetailView: View {
     
     private var contentSection: some View {
         VStack(alignment: .leading, spacing: 24) {
-            Text(article.content)
-                .font(.system(size: 17, weight: .regular))
-                .foregroundColor(.primary)
-                .multilineTextAlignment(.leading)
-                .lineSpacing(6)
+            // Formatted content with proper markdown-style formatting
+            FormattedArticleContentView(content: article.content)
             
             // Tags
             if !article.tags.isEmpty {
@@ -878,6 +875,218 @@ struct BookmarkedArticlesView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Formatted Article Content View
+
+struct FormattedArticleContentView: View {
+    let content: String
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            ForEach(parseContent(), id: \.id) { element in
+                element.view
+            }
+        }
+    }
+    
+    private func parseContent() -> [ContentElement] {
+        var elements: [ContentElement] = []
+        let lines = content.components(separatedBy: .newlines)
+        var currentParagraph: [String] = []
+        var currentList: [String] = []
+        var currentListType: ListType = .bullet
+        
+        enum ListType {
+            case bullet
+            case numbered
+        }
+        
+        func flushCurrentList() {
+            if !currentList.isEmpty {
+                switch currentListType {
+                case .bullet:
+                    elements.append(.bulletList(currentList))
+                case .numbered:
+                    elements.append(.numberedList(currentList))
+                }
+                currentList = []
+            }
+        }
+        
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            
+            if trimmed.isEmpty {
+                // Empty line - flush current content
+                if !currentParagraph.isEmpty {
+                    elements.append(.paragraph(currentParagraph.joined(separator: " ")))
+                    currentParagraph = []
+                }
+                flushCurrentList()
+                continue
+            }
+            
+            // Check for headings
+            if trimmed.hasPrefix("## ") {
+                if !currentParagraph.isEmpty {
+                    elements.append(.paragraph(currentParagraph.joined(separator: " ")))
+                    currentParagraph = []
+                }
+                flushCurrentList()
+                let headingText = String(trimmed.dropFirst(3)).trimmingCharacters(in: .whitespaces)
+                elements.append(.heading2(headingText))
+            } else if trimmed.hasPrefix("### ") {
+                if !currentParagraph.isEmpty {
+                    elements.append(.paragraph(currentParagraph.joined(separator: " ")))
+                    currentParagraph = []
+                }
+                flushCurrentList()
+                let headingText = String(trimmed.dropFirst(4)).trimmingCharacters(in: .whitespaces)
+                elements.append(.heading3(headingText))
+            }
+            // Check for bullet lists
+            else if trimmed.hasPrefix("- ") {
+                if !currentParagraph.isEmpty {
+                    elements.append(.paragraph(currentParagraph.joined(separator: " ")))
+                    currentParagraph = []
+                }
+                // If we were in a numbered list, flush it first
+                if currentListType == .numbered {
+                    flushCurrentList()
+                }
+                currentListType = .bullet
+                let listItem = String(trimmed.dropFirst(2)).trimmingCharacters(in: .whitespaces)
+                currentList.append(listItem)
+            }
+            // Check for numbered lists
+            else if let numberMatch = trimmed.range(of: #"^\d+\.\s"#, options: .regularExpression) {
+                if !currentParagraph.isEmpty {
+                    elements.append(.paragraph(currentParagraph.joined(separator: " ")))
+                    currentParagraph = []
+                }
+                // If we were in a bullet list, flush it first
+                if currentListType == .bullet {
+                    flushCurrentList()
+                }
+                currentListType = .numbered
+                let listItem = String(trimmed[numberMatch.upperBound...]).trimmingCharacters(in: .whitespaces)
+                currentList.append(listItem)
+            }
+            // Regular paragraph text
+            else {
+                flushCurrentList()
+                currentParagraph.append(trimmed)
+            }
+        }
+        
+        // Flush remaining content
+        if !currentParagraph.isEmpty {
+            elements.append(.paragraph(currentParagraph.joined(separator: " ")))
+        }
+        flushCurrentList()
+        
+        return elements
+    }
+}
+
+enum ContentElement: Identifiable {
+    case heading2(String)
+    case heading3(String)
+    case paragraph(String)
+    case bulletList([String])
+    case numberedList([String])
+    
+    var id: String {
+        switch self {
+        case .heading2(let text): return "h2-\(text)"
+        case .heading3(let text): return "h3-\(text)"
+        case .paragraph(let text): return "p-\(text.prefix(20))"
+        case .bulletList(let items): return "bullet-\(items.count)"
+        case .numberedList(let items): return "numbered-\(items.count)"
+        }
+    }
+    
+    @ViewBuilder
+    var view: some View {
+        switch self {
+        case .heading2(let text):
+            Text(cleanMarkdown(text))
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .foregroundColor(.primary)
+                .padding(.top, 16)
+                .padding(.bottom, 8)
+            
+        case .heading3(let text):
+            Text(cleanMarkdown(text))
+                .font(.system(size: 22, weight: .semibold, design: .rounded))
+                .foregroundColor(.primary)
+                .padding(.top, 12)
+                .padding(.bottom, 6)
+            
+        case .paragraph(let text):
+            Text(cleanMarkdown(text))
+                .font(.system(size: 17, weight: .regular))
+                .foregroundColor(.primary)
+                .lineSpacing(8)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.vertical, 4)
+            
+        case .bulletList(let items):
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+                    HStack(alignment: .top, spacing: 12) {
+                        Circle()
+                            .fill(Color.accentColor.opacity(0.7))
+                            .frame(width: 6, height: 6)
+                            .padding(.top, 8)
+                        
+                        Text(cleanMarkdown(item))
+                            .font(.system(size: 17, weight: .regular))
+                            .foregroundColor(.primary)
+                            .lineSpacing(6)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+            .padding(.vertical, 8)
+            .padding(.leading, 8)
+            
+        case .numberedList(let items):
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+                    HStack(alignment: .top, spacing: 12) {
+                        Text("\(index + 1).")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundColor(.accentColor)
+                            .frame(width: 30, alignment: .trailing)
+                            .padding(.top, 2)
+                        
+                        Text(cleanMarkdown(item))
+                            .font(.system(size: 17, weight: .regular))
+                            .foregroundColor(.primary)
+                            .lineSpacing(6)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+            .padding(.vertical, 8)
+            .padding(.leading, 8)
+        }
+    }
+    
+    private func cleanMarkdown(_ text: String) -> String {
+        var cleaned = text
+        // Remove bold markers
+        cleaned = cleaned.replacingOccurrences(of: "**", with: "")
+        cleaned = cleaned.replacingOccurrences(of: "__", with: "")
+        // Remove italic markers (but preserve bullets)
+        cleaned = cleaned.replacingOccurrences(of: #"(?<!^)(?<![\s\-])\*(?!\*)"#, with: "", options: .regularExpression)
+        // Remove code blocks
+        cleaned = cleaned.replacingOccurrences(of: "```", with: "")
+        cleaned = cleaned.replacingOccurrences(of: "`", with: "")
+        return cleaned.trimmingCharacters(in: .whitespaces)
     }
 }
 

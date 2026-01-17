@@ -193,10 +193,13 @@ class ScanViewModel: NSObject, ObservableObject {
         processingStage = .classifying
         
         do {
-            // Step 1: Classify object using FastViT
+            // Step 1: Classify object using MobileNet V3
+            print("\n🔍 Step 1: Classifying image with MobileNet V3...")
             let classification = try await classificationService.classifyImage(image)
+            print("   ✅ Classification result: \(classification.objectName) (confidence: \(String(format: "%.2f%%", classification.confidence * 100)))")
             
             // Step 2: Generate instructions using Foundation Model
+            print("\n🤖 Step 2: Generating recycling instructions...")
             processingStage = .generatingInstructions
             let instructions = try await classificationService.generateRecyclingInstructions(for: classification.objectName)
             
@@ -216,11 +219,18 @@ class ScanViewModel: NSObject, ObservableObject {
             processingStage = .complete
             isScanning = false
             
+            print("   ✅ Processing complete!")
+            print("   📦 Final result: \(item.name)")
+            print("   ♻️ Recyclable: \(item.isRecyclable)")
+            print("   📁 Category: \(item.category.rawValue)\n")
+            
         } catch {
+            print("   ❌ Error during processing: \(error.localizedDescription)")
             errorMessage = error.localizedDescription
             processingStage = .idle
             
             // Fallback: Use basic classification if Foundation Model fails
+            print("   🔄 Attempting fallback classification...")
             await fallbackClassification(image)
         }
         
