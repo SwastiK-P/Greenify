@@ -68,6 +68,14 @@ class TipGenerator {
                     icon: "map.fill",
                     category: .route
                 )
+            } else if distanceSaved > 0 {
+                // Even if savings are less than 5%, still suggest the shorter route
+                return PersonalizedTip(
+                    title: "💡 Shorter Route Available",
+                    message: "There's a shorter route available (\(shorterRoute.name)) that's \(String(format: "%.1f", distanceSaved)) km shorter. Consider it next time to save \(String(format: "%.2f", emissionsSaved)) kg CO₂!",
+                    icon: "map.fill",
+                    category: .route
+                )
             }
         }
         
@@ -91,7 +99,25 @@ class TipGenerator {
             )
         }
         
-        return nil
+        // If we have a longer route selected, always provide a tip about route optimization
+        if let shortestRoute = shortestRoute, selectedRoute.distance > shortestRoute.distance {
+            let extraDistance = selectedRoute.distance - shortestRoute.distance
+            let extraEmissions = extraDistance * emissionFactor
+            return PersonalizedTip(
+                title: "💡 Route Optimization Tip",
+                message: "You've selected a route that's \(String(format: "%.1f", extraDistance)) km longer than the shortest option. Consider route planning apps to find more efficient paths and reduce your carbon footprint by \(String(format: "%.2f", extraEmissions)) kg CO₂ on similar trips!",
+                icon: "map.fill",
+                category: .route
+            )
+        }
+        
+        // Fallback: general route tip
+        return PersonalizedTip(
+            title: "💡 Route Planning Tip",
+            message: "Consider using route planning apps to find the most efficient paths. Shorter routes not only save time but also reduce your carbon footprint!",
+            icon: "map.fill",
+            category: .route
+        )
     }
     
     // Generate tip after logging a transport activity
@@ -146,7 +172,7 @@ class TipGenerator {
     }
     
     // Generate tip after logging an energy activity
-    static func generateEnergyTip(activity: Activity) -> PersonalizedTip? {
+    static func generateEnergyTip(activity: Activity) -> PersonalizedTip {
         let usage = activity.quantity
         
         // High electricity usage
@@ -189,7 +215,7 @@ class TipGenerator {
     }
     
     // Generate tip after logging a food activity
-    static func generateFoodTip(activity: Activity) -> PersonalizedTip? {
+    static func generateFoodTip(activity: Activity) -> PersonalizedTip {
         // Meat consumption
         if activity.name.lowercased().contains("beef") || activity.name.lowercased().contains("lamb") {
             return PersonalizedTip(

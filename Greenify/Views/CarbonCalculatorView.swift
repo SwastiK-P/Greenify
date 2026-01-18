@@ -344,10 +344,7 @@ struct MessageBubble: View {
                 } else {
                     // AI message with native glass effect
                     VStack(alignment: .leading, spacing: 12) {
-                        // Check if this is a tip message
-                        let isTip = message.content.contains("💡")
-                        
-                        if isTip {
+                        if message.isTip {
                             // Tip message with special styling
                             VStack(alignment: .leading, spacing: 8) {
                                 Text(message.content)

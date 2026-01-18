@@ -14,14 +14,16 @@ struct ChatMessage: Identifiable, Equatable, Codable {
     let timestamp: Date
     let hasRouteSelection: Bool // Indicates if this message should show a route selection button
     let suggestedActions: [SuggestedAction] // Suggested actions for this message
+    let isTip: Bool // Indicates if this is a tip message for distinct styling
     
-    init(id: UUID = UUID(), content: String, isUser: Bool, timestamp: Date = Date(), hasRouteSelection: Bool = false, suggestedActions: [SuggestedAction] = []) {
+    init(id: UUID = UUID(), content: String, isUser: Bool, timestamp: Date = Date(), hasRouteSelection: Bool = false, suggestedActions: [SuggestedAction] = [], isTip: Bool = false) {
         self.id = id
         self.content = content
         self.isUser = isUser
         self.timestamp = timestamp
         self.hasRouteSelection = hasRouteSelection
         self.suggestedActions = suggestedActions
+        self.isTip = isTip
     }
 }
 
